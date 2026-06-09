@@ -1,0 +1,92 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler,PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+# Importing Data Sets
+from pyodide.http import pyfetch
+
+async def download(url, filename):
+    response = await pyfetch(url)
+    if response.status == 200:
+        with open(filename, "wb") as f:
+            f.write(await response.bytes())
+filepath='https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBMDeveloperSkillsNetwork-DA0101EN-SkillsNetwork/labs/FinalModule_Coursera/data/kc_house_data_NaN.csv'
+await download(filepath, "housing.csv")
+file_name="housing.csv"
+df = pd.read_csv(file_name)
+
+# Data Wrangling
+df.drop(['id','Unnamed: 0'],axis=1,inplace=True)
+df.describe()
+print("number of NaN values for the column bedrooms :", df['bedrooms'].isnull().sum())
+print("number of NaN values for the column bathrooms :", df['bathrooms'].isnull().sum())
+mean=df['bedrooms'].mean()
+df['bedrooms'].replace(np.nan,mean, inplace=True)
+mean=df['bathrooms'].mean()
+df['bathrooms'].replace(np.nan,mean, inplace=True)
+print("number of NaN values for the column bedrooms :", df['bedrooms'].isnull().sum())
+print("number of NaN values for the column bathrooms :", df['bathrooms'].isnull().sum())
+
+# Exploratory Data Analysis
+
+df['floors'].value_counts().to_frame()
+sns.boxplot(x=df['waterfront'],y=df['price'])
+sns.regplot(x=df['sqft_above'],y=df['price'],line_kws={'color':'red'})
+df_numeric = df.select_dtypes(include=[np.number])
+df_numeric.corr()['price'].sort_values()
+
+# Model Development
+X = df[['long']]
+Y = df['price']
+lm = LinearRegression()
+lm.fit(X,Y)
+lm.score(X, Y)
+
+X = df[['sqft_living']]
+Y = df['price']
+
+lm = LinearRegression()
+lm.fit(X,Y)
+
+print(lm.score(X,Y))
+
+features =["floors", "waterfront","lat" ,"bedrooms" ,"sqft_basement" ,"view" ,"bathrooms","sqft_living15","sqft_above","grade","sqft_living"]     
+Z= df[features]
+lm.fit(Z,Y)
+print(lm.score(Z,Y))
+
+
+pipe = Pipeline(Input)
+pipe.fit(df[features],Y)
+ypipe= pipe.predict(df[features])
+r = r2_score(Y,ypipe)
+
+# Model Evaluation and Refinement
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import train_test_split
+features =["floors", "waterfront","lat" ,"bedrooms" ,"sqft_basement" ,"view" ,"bathrooms","sqft_living15","sqft_above","grade","sqft_living"]    
+X = df[features]
+Y = df['price']
+
+x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.15, random_state=1)
+
+
+print("number of test samples:", x_test.shape[0])
+print("number of training samples:",x_train.shape[0])
+
+from sklearn.linear_model import Ridge
+RR = Ridge(alpha=0.1)
+RR.fit(x_train,y_train)
+yhat = RR.predict(x_test)
+r2_score(y_test,yhat)
+pr =PolynomialFeatures(degree=2)
+x_train_pr=pr.fit_transform(x_train)
+x_test_pr=pr.fit_transform(x_test)
+RR = Ridge(alpha=0.1)
+RR.fit(x_train_pr,y_train)
+y_hat= RR.predict(x_test_pr)
+r = r2_score(y_test,y_hat)
